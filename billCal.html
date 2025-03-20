@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Electricity Bill Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #121212;
+            color: white;
+            margin: 0;
+        }
+        .container {
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(255, 255, 255, 0.1);
+            text-align: center;
+            width: 90%;
+            max-width: 600px;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #6200ea;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #3700b3;
+        }
+        .shop-container {
+            display: flex;
+            justify-content: space-between;
+        }
+        .shop-section {
+            width: 48%;
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        @media (max-width: 600px) {
+            .shop-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            .shop-section {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Electricity Bill Calculator</h2>
+
+        <label>Year:</label>
+        <select id="yearSelect"></select>
+
+        <label>Month:</label>
+        <select id="monthSelect">
+            <option value="January">January</option>
+            <option value="February">February</option>
+            <option value="March">March</option>
+            <option value="April">April</option>
+            <option value="May">May</option>
+            <option value="June">June</option>
+            <option value="July">July</option>
+            <option value="August">August</option>
+            <option value="September">September</option>
+            <option value="October">October</option>
+            <option value="November">November</option>
+            <option value="December">December</option>
+        </select>
+
+        <label>Total Amount Paid: </label>
+        <input type="number" id="totalAmount" placeholder="Total ₹">
+
+        <div class="shop-container">
+            <div class="shop-section">
+                <h3>Mobile Shop</h3>
+                <label>Last Reading: </label>
+                <input type="number" id="shop1LastReading" placeholder="Last Reading" oninput="updateUnits()">
+                <label>Current Reading: </label>
+                <input type="number" id="shop1CurrentReading" placeholder="Current Reading" oninput="updateUnits()">
+                <label>Units Consumed: </label>
+                <input type="number" id="shop1Units" placeholder="Units" readonly>
+            </div>
+
+            <div class="shop-section">
+                <h3>Medical Shop</h3>
+                <label>Last Reading: </label>
+                <input type="number" id="shop2LastReading" placeholder="Last Reading" oninput="updateUnits()">
+                <label>Current Reading: </label>
+                <input type="number" id="shop2CurrentReading" placeholder="Current Reading" oninput="updateUnits()">
+                <label>Units Consumed: </label>
+                <input type="number" id="shop2Units" placeholder="Units" readonly>
+            </div>
+        </div>
+
+        <button onclick="calculateBill()">Calculate & Save</button>
+        <h3 id="result"></h3>
+        <p id="lastUpdated"></p>
+    </div>
+
+    <script>
+        const yearSelect = document.getElementById("yearSelect");
+        const monthSelect = document.getElementById("monthSelect");
+
+        // Populate years up to 2035
+        const currentYear = new Date().getFullYear();
+        for (let year = currentYear; year <= 2035; year++) {
+            let option = document.createElement("option");
+            option.value = year;
+            option.textContent = year;
+            yearSelect.appendChild(option);
+        }
+
+        // Load Data When Month is Selected
+        monthSelect.addEventListener("change", loadData);
+        yearSelect.addEventListener("change", loadData);
+
+        function loadData() {
+            let year = yearSelect.value;
+            let month = monthSelect.value;
+            let yearData = JSON.parse(localStorage.getItem(year)) || {};
+
+            if (yearData[month]) {
+                let data = yearData[month];
+                document.getElementById('totalAmount').value = data.totalAmount;
+                document.getElementById('shop1LastReading').value = data.shop1.lastReading;
+                document.getElementById('shop1CurrentReading').value = data.shop1.currentReading;
+                document.getElementById('shop2LastReading').value = data.shop2.lastReading;
+                document.getElementById('shop2CurrentReading').value = data.shop2.currentReading;
+                updateUnits();
+                document.getElementById('result').innerText = `Mobile Shop Bill: ₹${data.shop1.bill}\nMedical Shop Bill: ₹${data.shop2.bill}`;
+                document.getElementById('lastUpdated').innerText = `Last Recorded: ${data.date}`;
+            } else {
+                document.getElementById('totalAmount').value = "";
+                document.getElementById('shop1LastReading').value = "";
+                document.getElementById('shop1CurrentReading').value = "";
+                document.getElementById('shop1Units').value = "";
+                document.getElementById('shop2LastReading').value = "";
+                document.getElementById('shop2CurrentReading').value = "";
+                document.getElementById('shop2Units').value = "";
+                document.getElementById('result').innerText = "";
+                document.getElementById('lastUpdated').innerText = "";
+            }
+        }
+
+        function updateUnits() {
+            let shop1Last = parseFloat(document.getElementById('shop1LastReading').value) || 0;
+            let shop1Current = parseFloat(document.getElementById('shop1CurrentReading').value) || 0;
+            let shop2Last = parseFloat(document.getElementById('shop2LastReading').value) || 0;
+            let shop2Current = parseFloat(document.getElementById('shop2CurrentReading').value) || 0;
+
+            document.getElementById('shop1Units').value = Math.max(shop1Current - shop1Last, 0);
+            document.getElementById('shop2Units').value = Math.max(shop2Current - shop2Last, 0);
+        }
+
+        function calculateBill() {
+            let year = yearSelect.value;
+            let month = monthSelect.value;
+            let totalAmount = parseFloat(document.getElementById('totalAmount').value);
+            let shop1Units = parseFloat(document.getElementById('shop1Units').value);
+            let shop2Units = parseFloat(document.getElementById('shop2Units').value);
+
+            let totalUnits = shop1Units + shop2Units;
+            let perUnitRate = totalAmount / totalUnits;
+            let shop1Bill = (shop1Units * perUnitRate).toFixed(3);
+            let shop2Bill = (shop2Units * perUnitRate).toFixed(3);
+            let date = new Date().toLocaleDateString();
+
+            let data = { totalAmount, date, shop1: { lastReading: shop1Units, currentReading: shop1Units, bill: shop1Bill }, shop2: { lastReading: shop2Units, currentReading: shop2Units, bill: shop2Bill } };
+            let yearData = JSON.parse(localStorage.getItem(year)) || {};
+            yearData[month] = data;
+            localStorage.setItem(year, JSON.stringify(yearData));
+
+            loadData();
+        }
+    </script>
+</body>
+</html>
