@@ -1139,7 +1139,7 @@ async function calculateBill() {
         shop2_units: u2,
         shop2_bill: parseFloat(b2),
         display_date: date
-      }, { onConflict: 'year, month' });
+      }, { onConflict: 'year,month' });
     
     if (error) {
       console.error('Supabase save error details:', error);
