@@ -1200,6 +1200,7 @@ async function buildTimeline(append = false) {
             const entry = document.createElement('div');
             entry.className = 'tl-entry';
             entry.innerHTML = `
+              <div class="tl-dot-wrap"><div class="tl-dot"></div></div>
               <div class="tl-content">
                 <div class="tl-date">${bill.display_date || bill.created_at}</div>
                 <div class="tl-title">Bill — ₹${bill.total_amount} &nbsp;<span style="font-size:.7rem;opacity:.5">${bill.month} ${bill.year}</span></div>
@@ -1210,6 +1211,12 @@ async function buildTimeline(append = false) {
               </div>`;
             container.appendChild(entry);
           });
+
+          // Trigger in-view animations via IntersectionObserver
+          const observer = new IntersectionObserver((entries) => {
+            entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in-view'); observer.unobserve(e.target); } });
+          }, { threshold: 0.1 });
+          container.querySelectorAll('.tl-entry:not(.in-view)').forEach(el => observer.observe(el));
           
           currentOffset += data.length;
           if (data.length < PAGE_SIZE) {
