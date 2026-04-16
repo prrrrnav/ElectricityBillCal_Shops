@@ -3,11 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>⚡ Electricity Bill Calculator</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<title>Electricity Bill Calculator</title>
 <meta name="description" content="Premium electricity bill calculator — Aceternity UI inspired glassmorphism design.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 
 <style>
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -370,6 +373,32 @@ select option{background:#1f1f25;color:var(--on)}
 }
 .tl-empty span{font-size:2rem;display:block;margin-bottom:.75rem}
 
+/* Load More Button */
+.load-more-container{
+  display:flex;justify-content:center;margin-top:3rem;padding-bottom:1rem;
+}
+.btn-load-more{
+  padding:.8rem 2rem;
+  background:rgba(210,187,255,.1);
+  color:var(--pr);
+  border:1px solid rgba(210,187,255,.3);
+  border-radius:var(--r-md);
+  font-family:'Inter',sans-serif;font-size:.9rem;font-weight:700;
+  cursor:pointer;
+  transition:all .2s ease;
+  backdrop-filter:blur(10px);
+}
+.btn-load-more:hover{
+  background:rgba(210,187,255,.2);
+  border-color:var(--pr);
+  transform:translateY(-2px);
+}
+.btn-load-more:disabled{
+  opacity:0.5;cursor:not-allowed;transform:none;
+}
+.btn-load-more.hidden{display:none}
+
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    TOAST
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -590,8 +619,12 @@ select option{background:#1f1f25;color:var(--on)}
     <div class="tl-track"></div>
     <div class="tl-beam" id="tlBeam"></div>
     <div id="tlEntries"></div>
+    <div class="load-more-container">
+      <button id="loadMoreBtn" class="btn-load-more hidden" onclick="loadMore()">Load More Bills</button>
+    </div>
   </div>
 </section>
+
 
 
 <!-- ══════════════════════════════════════════════════
@@ -602,7 +635,27 @@ select option{background:#1f1f25;color:var(--on)}
 <script src="https://unpkg.com/cobe@0.6.3/dist/cobe.umd.js"></script>
 
 <script>
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SUPABASE CONFIGURATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+const SUPABASE_URL = '';
+const SUPABASE_ANON_KEY = '';
+
+let supabase = null;
+if (SUPABASE_URL && SUPABASE_URL.trim() !== '' && SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+  try {
+    supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch (e) {
+    console.error('Supabase init failed:', e);
+  }
+}
+
+// Pagination state
+let currentOffset = 0;
+const PAGE_SIZE = 5;
+
 /* Aurora Background is pure CSS — no JS needed. */
+
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    §1  GOOGLE GEMINI EFFECT — scroll-driven pathLength
@@ -805,75 +858,141 @@ function triggerVanish(){
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    §4  TIMELINE — sticky scroll beam + IntersectionObserver
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function buildTimeline(){
-  const container=document.getElementById('tlEntries');
-  const beam=document.getElementById('tlBeam');
-  const list=document.getElementById('tlList');
-  container.innerHTML='';
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   §4  TIMELINE — Supabase Fetching + Pagination
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+async function buildTimeline(append = false) {
+  const container = document.getElementById('tlEntries');
+  const beam = document.getElementById('tlBeam');
+  const list = document.getElementById('tlList');
+  const loadMoreBtn = document.getElementById('loadMoreBtn');
 
-  // collect ALL saved entries from localStorage
-  const entries=[];
-  const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
-  for(let k in localStorage){
-    if(/^\d{4}$/.test(k)){
-      const yr=k,data=JSON.parse(localStorage.getItem(k));
-      MONTHS.forEach(mo=>{
-        if(data[mo]){const d=data[mo];entries.push({yr,mo,d})}
-      });
+  if (!append) {
+    container.innerHTML = '';
+    currentOffset = 0;
+  }
+
+  let entries = [];
+
+  if (supabase) {
+    // Fetch from Supabase with pagination
+    const { data, error, count } = await supabase
+      .from('electricity_bills')
+      .select('*', { count: 'exact' })
+      .order('year', { ascending: false })
+      .order('created_at', { ascending: false }) // Sort by year then newest first
+      .range(currentOffset, currentOffset + PAGE_SIZE - 1);
+
+    if (error) {
+      console.error('Supabase error:', error);
+      showToast('❌ Failed to fetch from DB');
+    } else {
+      entries = data.map(d => ({
+        yr: d.year,
+        mo: d.month,
+        d: {
+          totalAmount: d.total_amount,
+          date: d.display_date,
+          shop1: { currentReading: d.shop1_current, lastReading: d.shop1_last, units: d.shop1_units, bill: d.shop1_bill },
+          shop2: { currentReading: d.shop2_current, lastReading: d.shop2_last, units: d.shop2_units, bill: d.shop2_bill }
+        }
+      }));
+
+      // Update button visibility
+      if (count > currentOffset + PAGE_SIZE) {
+        loadMoreBtn.classList.remove('hidden');
+      } else {
+        loadMoreBtn.classList.add('hidden');
+      }
+    }
+  } else {
+    // Fallback to localStorage (Legacy behavior for dev/setup)
+    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const allLocal = [];
+    for (let k in localStorage) {
+      if (/^\d{4}$/.test(k)) {
+        const yr = k, data = JSON.parse(localStorage.getItem(k));
+        MONTHS.forEach(mo => { if (data[mo]) allLocal.push({ yr, mo, d: data[mo] }) });
+      }
+    }
+    allLocal.sort((a, b) => {
+      const ai = MONTHS.indexOf(a.mo), bi = MONTHS.indexOf(b.mo);
+      return (parseInt(b.yr) - parseInt(a.yr)) || bi - ai;
+    });
+
+    entries = allLocal.slice(currentOffset, currentOffset + PAGE_SIZE);
+    if (allLocal.length > currentOffset + PAGE_SIZE) loadMoreBtn.classList.remove('hidden');
+    else loadMoreBtn.classList.add('hidden');
+    if (allLocal.length === 0) {
+       container.innerHTML = '<div class="tl-empty"><span>📋</span>No bills saved yet.<br>Calculate your first bill above to see it here!</div>';
+       beam.style.display = 'none'; return;
     }
   }
 
-  // sort newest first
-  entries.sort((a,b)=>{
-    const ai=MONTHS.indexOf(a.mo),bi=MONTHS.indexOf(b.mo);
-    return (parseInt(b.yr)-parseInt(a.yr))||bi-ai;
-  });
-
-  if(!entries.length){
-    container.innerHTML='<div class="tl-empty"><span>📋</span>No bills saved yet.<br>Calculate your first bill above to see it here!</div>';
-    beam.style.display='none';return;
+  if (!entries.length && !append) {
+    container.innerHTML = '<div class="tl-empty"><span>📋</span>No bills saved yet.<br>Calculate your first bill above to see it here!</div>';
+    beam.style.display = 'none'; return;
   }
-  beam.style.display='block';
 
-  entries.forEach((e,i)=>{
-    const d=e.d;
-    const u1=d.shop1?.units||Math.max((d.shop1?.currentReading||0)-(d.shop1?.lastReading||0),0);
-    const u2=d.shop2?.units||Math.max((d.shop2?.currentReading||0)-(d.shop2?.lastReading||0),0);
-    const el=document.createElement('div');
-    el.className='tl-entry';
-    el.innerHTML=`
+  beam.style.display = 'block';
+
+  entries.forEach((e) => {
+    const d = e.d;
+    const u1 = d.shop1.units;
+    const u2 = d.shop2.units;
+    const el = document.createElement('div');
+    el.className = 'tl-entry';
+    el.innerHTML = `
       <div class="tl-dot-wrap"><div class="tl-dot"></div></div>
       <div class="tl-content">
         <div class="tl-date">${e.mo} ${e.yr}</div>
-        <div class="tl-title">₹${parseFloat(d.totalAmount).toFixed(2)} — ${(u1+u2)} units total</div>
+        <div class="tl-title">₹${parseFloat(d.totalAmount).toFixed(2)} — ${(u1 + u2)} units total</div>
         <div class="tl-body">
           <div class="tl-row"><span class="tl-row-label">📱 Mobile Shop Bill</span><span class="tl-row-val">₹${parseFloat(d.shop1.bill).toFixed(2)}</span></div>
           <div class="tl-row"><span class="tl-row-label">📱 Mobile Units</span><span class="tl-row-val">${u1} kWh</span></div>
           <div class="tl-row"><span class="tl-row-label">💊 Medical Shop Bill</span><span class="tl-row-val">₹${parseFloat(d.shop2.bill).toFixed(2)}</span></div>
           <div class="tl-row"><span class="tl-row-label">💊 Medical Units</span><span class="tl-row-val">${u2} kWh</span></div>
-          <div class="tl-row"><span class="tl-row-label">🕒 Saved</span><span class="tl-row-val" style="color:var(--dim);font-weight:400">${d.date||'—'}</span></div>
+          <div class="tl-row"><span class="tl-row-label">🕒 Saved</span><span class="tl-row-val" style="color:var(--dim);font-weight:400">${d.date || '—'}</span></div>
         </div>
       </div>`;
     container.appendChild(el);
+
+    // Animate observation
+    io.observe(el);
   });
 
-  // IntersectionObserver: animate entries in
-  const io=new IntersectionObserver(es=>{
-    es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in-view')});
-  },{threshold:.15});
-  container.querySelectorAll('.tl-entry').forEach(el=>io.observe(el));
-
-  // Scroll beam: grows as section scrolls into view
-  window.addEventListener('scroll',()=>{
-    const sRect=list.getBoundingClientRect();
-    const sHeight=list.offsetHeight;
-    const viewH=window.innerHeight;
-    const scrolled=viewH-sRect.top;
-    const pct=Math.min(Math.max(scrolled/sHeight,0),1);
-    beam.style.transform=`scaleY(${pct})`;
-    beam.style.height=`${sHeight}px`;
-  },{passive:true});
+  // Re-adjust beam height
+  const sHeight = list.offsetHeight;
+  beam.style.height = `${sHeight}px`;
 }
+
+// IntersectionObserver setup
+const io = new IntersectionObserver(es => {
+  es.forEach(e => { if (e.isIntersecting) e.target.classList.add('in-view') });
+}, { threshold: .15 });
+
+async function loadMore() {
+  const btn = document.getElementById('loadMoreBtn');
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+  currentOffset += PAGE_SIZE;
+  await buildTimeline(true);
+  btn.disabled = false;
+  btn.textContent = 'Load More Bills';
+}
+
+window.addEventListener('scroll', () => {
+  const list = document.getElementById('tlList');
+  const beam = document.getElementById('tlBeam');
+  if (!list || !beam) return;
+  const sRect = list.getBoundingClientRect();
+  const sHeight = list.offsetHeight;
+  const viewH = window.innerHeight;
+  const scrolled = viewH - sRect.top;
+  const pct = Math.min(Math.max(scrolled / sHeight, 0), 1);
+  beam.style.transform = `scaleY(${pct})`;
+}, { passive: true });
+
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    TOAST
@@ -902,29 +1021,52 @@ yearSel.addEventListener('change',loadData);
 monSel.addEventListener('change',loadData);
 loadData();buildTimeline();
 
-function loadData(){
-  const yr=yearSel.value,mo=monSel.value;
-  const yd=JSON.parse(localStorage.getItem(yr))||{};
-  if(yd[mo]){
-    const d=yd[mo];
-    document.getElementById('totalAmount').value=d.totalAmount;
-    document.getElementById('shop1CurrentReading').value=d.shop1.currentReading;
-    document.getElementById('shop1LastReading').value=d.shop1.lastReading;
-    document.getElementById('shop2CurrentReading').value=d.shop2.currentReading;
-    document.getElementById('shop2LastReading').value=d.shop2.lastReading;
+async function loadData() {
+  const yr = yearSel.value, mo = monSel.value;
+  let d = null;
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('electricity_bills')
+      .select('*')
+      .eq('year', yr)
+      .eq('month', mo)
+      .single();
+    
+    if (data) {
+      d = {
+        totalAmount: data.total_amount,
+        date: data.display_date,
+        shop1: { currentReading: data.shop1_current, lastReading: data.shop1_last, units: data.shop1_units, bill: data.shop1_bill },
+        shop2: { currentReading: data.shop2_current, lastReading: data.shop2_last, units: data.shop2_units, bill: data.shop2_bill }
+      };
+    }
+  } else {
+    // Fallback to local
+    const yd = JSON.parse(localStorage.getItem(yr)) || {};
+    d = yd[mo];
+  }
+
+  if (d) {
+    document.getElementById('totalAmount').value = d.totalAmount;
+    document.getElementById('shop1CurrentReading').value = d.shop1.currentReading;
+    document.getElementById('shop1LastReading').value = d.shop1.lastReading;
+    document.getElementById('shop2CurrentReading').value = d.shop2.currentReading;
+    document.getElementById('shop2LastReading').value = d.shop2.lastReading;
     onAmountInput(amtInput);
     updateUnits();
-    showResults(d.shop1.bill,d.shop2.bill,d.shop1.units,d.shop2.units,d.totalAmount);
-    document.getElementById('lastUpdated').textContent=`Last saved: ${d.date}`;
-  }else{
-    ['totalAmount','shop1CurrentReading','shop1LastReading','shop1Units',
-     'shop2CurrentReading','shop2LastReading','shop2Units']
-     .forEach(id=>document.getElementById(id).value='');
+    showResults(d.shop1.bill, d.shop2.bill, d.shop1.units, d.shop2.units, d.totalAmount);
+    document.getElementById('lastUpdated').textContent = `Last saved: ${d.date}`;
+  } else {
+    ['totalAmount', 'shop1CurrentReading', 'shop1LastReading', 'shop1Units',
+      'shop2CurrentReading', 'shop2LastReading', 'shop2Units']
+      .forEach(id => document.getElementById(id).value = '');
     onAmountInput(amtInput);
     document.getElementById('resultsSection').classList.remove('visible');
-    document.getElementById('lastUpdated').textContent='';
+    document.getElementById('lastUpdated').textContent = '';
   }
 }
+
 
 function updateUnits(){
   const s1c=+document.getElementById('shop1CurrentReading').value||0;
@@ -943,35 +1085,64 @@ function showResults(b1,b2,u1,u2,total){
   document.getElementById('resultsSection').classList.add('visible');
 }
 
-function calculateBill(){
-  const yr=yearSel.value,mo=monSel.value;
-  const total=+document.getElementById('totalAmount').value;
-  const s1c=+document.getElementById('shop1CurrentReading').value||0;
-  const s1l=+document.getElementById('shop1LastReading').value||0;
-  const s2c=+document.getElementById('shop2CurrentReading').value||0;
-  const s2l=+document.getElementById('shop2LastReading').value||0;
-  const u1=Math.max(s1c-s1l,0),u2=Math.max(s2c-s2l,0);
+async function calculateBill() {
+  const yr = yearSel.value, mo = monSel.value;
+  const total = +document.getElementById('totalAmount').value;
+  const s1c = +document.getElementById('shop1CurrentReading').value || 0;
+  const s1l = +document.getElementById('shop1LastReading').value || 0;
+  const s2c = +document.getElementById('shop2CurrentReading').value || 0;
+  const s2l = +document.getElementById('shop2LastReading').value || 0;
+  const u1 = Math.max(s1c - s1l, 0), u2 = Math.max(s2c - s2l, 0);
 
-  if(!total||total<=0){showToast('⚠️  Enter a valid total amount.');return}
-  if(!u1&&!u2){showToast('⚠️  Units are zero — check readings.');return}
+  if (!total || total <= 0) { showToast('⚠️ Enter a valid total amount.'); return }
+  if (!u1 && !u2) { showToast('⚠️ Units are zero — check readings.'); return }
 
-  const tu=u1+u2,rate=total/tu;
-  const b1=(u1*rate).toFixed(3),b2=(u2*rate).toFixed(3);
-  const date=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const tu = u1 + u2, rate = total / tu;
+  const b1 = (u1 * rate).toFixed(3), b2 = (u2 * rate).toFixed(3);
+  const date = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-  const data={totalAmount:total,date,
-    shop1:{currentReading:s1c,lastReading:s1l,units:u1,bill:b1},
-    shop2:{currentReading:s2c,lastReading:s2l,units:u2,bill:b2}};
-  const yd=JSON.parse(localStorage.getItem(yr))||{};
-  yd[mo]=data;localStorage.setItem(yr,JSON.stringify(yd));
+  const data = {
+    totalAmount: total, date,
+    shop1: { currentReading: s1c, lastReading: s1l, units: u1, bill: b1 },
+    shop2: { currentReading: s2c, lastReading: s2l, units: u2, bill: b2 }
+  };
 
-  document.getElementById('shop1Units').value=u1;
-  document.getElementById('shop2Units').value=u2;
-  showResults(b1,b2,u1,u2,total);
-  document.getElementById('lastUpdated').textContent=`Last saved: ${date}`;
-  showToast('✅  Bill saved!');
+  if (supabase) {
+    const { error } = await supabase
+      .from('electricity_bills')
+      .upsert({
+        year: parseInt(yr),
+        month: mo,
+        total_amount: total,
+        shop1_current: s1c,
+        shop1_last: s1l,
+        shop1_units: u1,
+        shop1_bill: parseFloat(b1),
+        shop2_current: s2c,
+        shop2_last: s2l,
+        shop2_units: u2,
+        shop2_bill: parseFloat(b2),
+        display_date: date
+      });
+    
+    if (error) {
+      console.error('Supabase save error:', error);
+      showToast('❌ DB Error — Check configuration');
+    }
+  }
+
+  // Always keep localStorage as a sync/fallback
+  const yd = JSON.parse(localStorage.getItem(yr)) || {};
+  yd[mo] = data; localStorage.setItem(yr, JSON.stringify(yd));
+
+  document.getElementById('shop1Units').value = u1;
+  document.getElementById('shop2Units').value = u2;
+  showResults(b1, b2, u1, u2, total);
+  document.getElementById('lastUpdated').textContent = `Last saved: ${date}`;
+  showToast('✅ Bill saved in Cloud!');
   buildTimeline(); // refresh timeline
 }
+
 </script>
 </body>
 </html>

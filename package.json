@@ -1,0 +1,11 @@
+{
+  "name": "electricity-bill-calculator",
+  "version": "1.0.0",
+  "description": "Premium electricity bill calculator for shops",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
