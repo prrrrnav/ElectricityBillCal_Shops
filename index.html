@@ -1035,9 +1035,9 @@ async function loadData() {
         .select('*')
         .eq('year', parseInt(yr))   // FIX: year is stored as INT in DB
         .eq('month', mo)
-        .single();
+        .maybeSingle();
       
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned (not a real error)
+      if (error) {
         console.error('❌ Supabase Fetch Error:', error);
         showToast('❌ Could not load from Cloud — fallback to local');
         // Fallback to local on error
