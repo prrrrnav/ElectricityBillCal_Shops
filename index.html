@@ -1171,6 +1171,8 @@ async function loadMore() {
 async function buildTimeline(append = false) {
   const container = document.getElementById('tlEntries');
   const loadMoreBtn = document.getElementById('loadMoreBtn');
+
+  if (!container) { console.error('❌ tlEntries not found'); return; }
   
   if (!append) {
     container.innerHTML = '';
@@ -1179,43 +1181,49 @@ async function buildTimeline(append = false) {
 
   // If DB is configured, fetch from Supabase
   if (supabaseClient) {
-    const { data, error } = await supabaseClient
-      .from('electricity_bills')
-      .select('*')
-      .order('id', { ascending: false })
-      .range(currentOffset, currentOffset + PAGE_SIZE - 1);
-    
-    if (error) {
-      console.error('Fetch error:', error);
-      showToast('❌ Failed to fetch history');
-    } else {
-      if (data && data.length > 0) {
-        data.forEach(bill => {
-          const entry = document.createElement('div');
-          entry.className = 'tl-entry';
-          entry.innerHTML = `
-            <div class="tl-content">
-              <div class="tl-date">${bill.display_date}</div>
-              <div class="tl-title">Bill — ₹${bill.total_amount}</div>
-              <div class="tl-body">
-                <div class="tl-row"><span class="tl-row-label">Shop 1</span><span class="tl-row-val">₹${bill.shop1_bill} (${bill.shop1_units} units)</span></div>
-                <div class="tl-row"><span class="tl-row-label">Shop 2</span><span class="tl-row-val">₹${bill.shop2_bill} (${bill.shop2_units} units)</span></div>
-              </div>
-            </div>`;
-          container.appendChild(entry);
-        });
-        
-        currentOffset += data.length;
-        // Show/hide load more button
-        if (data.length < PAGE_SIZE) {
+    try {
+      console.log('📋 buildTimeline: fetching from DB, offset=', currentOffset);
+      const { data, error } = await supabaseClient
+        .from('electricity_bills')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(currentOffset, currentOffset + PAGE_SIZE - 1);
+      
+      console.log('📋 buildTimeline result:', { data, error });
+
+      if (error) {
+        console.error('❌ History fetch error:', error);
+        showToast('❌ Failed to fetch history');
+      } else {
+        if (data && data.length > 0) {
+          data.forEach(bill => {
+            const entry = document.createElement('div');
+            entry.className = 'tl-entry';
+            entry.innerHTML = `
+              <div class="tl-content">
+                <div class="tl-date">${bill.display_date || bill.created_at}</div>
+                <div class="tl-title">Bill — ₹${bill.total_amount} &nbsp;<span style="font-size:.7rem;opacity:.5">${bill.month} ${bill.year}</span></div>
+                <div class="tl-body">
+                  <div class="tl-row"><span class="tl-row-label">Mobile Shop</span><span class="tl-row-val">₹${parseFloat(bill.shop1_bill).toFixed(2)} (${bill.shop1_units} units)</span></div>
+                  <div class="tl-row"><span class="tl-row-label">Medical Shop</span><span class="tl-row-val">₹${parseFloat(bill.shop2_bill).toFixed(2)} (${bill.shop2_units} units)</span></div>
+                </div>
+              </div>`;
+            container.appendChild(entry);
+          });
+          
+          currentOffset += data.length;
+          if (data.length < PAGE_SIZE) {
+            loadMoreBtn.classList.add('hidden');
+          } else {
+            loadMoreBtn.classList.remove('hidden');
+          }
+        } else if (!append) {
+          container.innerHTML = '<div class="tl-empty"><span>⏳</span>No history found in database</div>';
           loadMoreBtn.classList.add('hidden');
-        } else {
-          loadMoreBtn.classList.remove('hidden');
         }
-      } else if (!append) {
-        container.innerHTML = '<div class="tl-empty"><span>⏳</span>No history found in database</div>';
-        loadMoreBtn.classList.add('hidden');
       }
+    } catch (err) {
+      console.error('❌ buildTimeline crash:', err);
     }
   } else {
     // Local fallback logic (simple, no pagination needed for localStorage since it's local)
