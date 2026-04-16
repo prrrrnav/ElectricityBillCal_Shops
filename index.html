@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
 <title>Electricity Bill Calculator</title>
 <meta name="description" content="Premium electricity bill calculator — Aceternity UI inspired glassmorphism design.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -641,13 +641,16 @@ select option{background:#1f1f25;color:var(--on)}
 const SUPABASE_URL = '';
 const SUPABASE_ANON_KEY = '';
 
-let supabase = null;
+let supabaseClient = null;
 if (SUPABASE_URL && SUPABASE_URL.trim() !== '' && SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
   try {
-    supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log('✅ Supabase client initialized successfully.');
   } catch (e) {
-    console.error('Supabase init failed:', e);
+    console.error('❌ Supabase init failed:', e);
   }
+} else {
+  console.warn('⚠️ Supabase URL not configured. Running in local-only mode.');
 }
 
 // Pagination state
@@ -1025,24 +1028,37 @@ async function loadData() {
   const yr = yearSel.value, mo = monSel.value;
   let d = null;
 
-  if (supabase) {
-    const { data, error } = await supabase
-      .from('electricity_bills')
-      .select('*')
-      .eq('year', yr)
-      .eq('month', mo)
-      .single();
-    
-    if (data) {
-      d = {
-        totalAmount: data.total_amount,
-        date: data.display_date,
-        shop1: { currentReading: data.shop1_current, lastReading: data.shop1_last, units: data.shop1_units, bill: data.shop1_bill },
-        shop2: { currentReading: data.shop2_current, lastReading: data.shop2_last, units: data.shop2_units, bill: data.shop2_bill }
-      };
+  if (supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('electricity_bills')
+        .select('*')
+        .eq('year', parseInt(yr))   // FIX: year is stored as INT in DB
+        .eq('month', mo)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned (not a real error)
+        console.error('❌ Supabase Fetch Error:', error);
+        showToast('❌ Could not load from Cloud — fallback to local');
+        // Fallback to local on error
+        const yd = JSON.parse(localStorage.getItem(yr)) || {};
+        d = yd[mo];
+      } else if (data) {
+        console.log('📦 Loaded from Supabase:', data);
+        d = {
+          totalAmount: data.total_amount,
+          date: data.display_date,
+          shop1: { currentReading: data.shop1_current, lastReading: data.shop1_last, units: data.shop1_units, bill: data.shop1_bill },
+          shop2: { currentReading: data.shop2_current, lastReading: data.shop2_last, units: data.shop2_units, bill: data.shop2_bill }
+        };
+      } else {
+        console.log('ℹ️ No record in DB for', yr, mo);
+      }
+    } catch (err) {
+      console.error('❌ Unexpected fetch error:', err);
     }
   } else {
-    // Fallback to local
+    // Fallback to local storage
     const yd = JSON.parse(localStorage.getItem(yr)) || {};
     d = yd[mo];
   }
@@ -1107,8 +1123,8 @@ async function calculateBill() {
     shop2: { currentReading: s2c, lastReading: s2l, units: u2, bill: b2 }
   };
 
-  if (supabase) {
-    const { error } = await supabase
+  if (supabaseClient) {
+    const { error } = await supabaseClient
       .from('electricity_bills')
       .upsert({
         year: parseInt(yr),
@@ -1123,12 +1139,17 @@ async function calculateBill() {
         shop2_units: u2,
         shop2_bill: parseFloat(b2),
         display_date: date
-      });
+      }, { onConflict: 'year, month' });
     
     if (error) {
-      console.error('Supabase save error:', error);
-      showToast('❌ DB Error — Check configuration');
+      console.error('Supabase save error details:', error);
+      showToast('❌ Cloud Save Failed — See Console');
+    } else {
+      showToast('✅ Bill synced to Cloud!');
     }
+  } else {
+    console.warn('Supabase not initialized. Saving to localized storage only.');
+    showToast('⚠️ Local Save Only (DB not configured)');
   }
 
   // Always keep localStorage as a sync/fallback
@@ -1142,6 +1163,118 @@ async function calculateBill() {
   showToast('✅ Bill saved in Cloud!');
   buildTimeline(); // refresh timeline
 }
+
+async function loadMore() {
+  await buildTimeline(true);
+}
+
+async function buildTimeline(append = false) {
+  const container = document.getElementById('tlEntries');
+  const loadMoreBtn = document.getElementById('loadMoreBtn');
+  
+  if (!append) {
+    container.innerHTML = '';
+    currentOffset = 0;
+  }
+
+  // If DB is configured, fetch from Supabase
+  if (supabaseClient) {
+    const { data, error } = await supabaseClient
+      .from('electricity_bills')
+      .select('*')
+      .order('id', { ascending: false })
+      .range(currentOffset, currentOffset + PAGE_SIZE - 1);
+    
+    if (error) {
+      console.error('Fetch error:', error);
+      showToast('❌ Failed to fetch history');
+    } else {
+      if (data && data.length > 0) {
+        data.forEach(bill => {
+          const entry = document.createElement('div');
+          entry.className = 'tl-entry';
+          entry.innerHTML = `
+            <div class="tl-content">
+              <div class="tl-date">${bill.display_date}</div>
+              <div class="tl-title">Bill — ₹${bill.total_amount}</div>
+              <div class="tl-body">
+                <div class="tl-row"><span class="tl-row-label">Shop 1</span><span class="tl-row-val">₹${bill.shop1_bill} (${bill.shop1_units} units)</span></div>
+                <div class="tl-row"><span class="tl-row-label">Shop 2</span><span class="tl-row-val">₹${bill.shop2_bill} (${bill.shop2_units} units)</span></div>
+              </div>
+            </div>`;
+          container.appendChild(entry);
+        });
+        
+        currentOffset += data.length;
+        // Show/hide load more button
+        if (data.length < PAGE_SIZE) {
+          loadMoreBtn.classList.add('hidden');
+        } else {
+          loadMoreBtn.classList.remove('hidden');
+        }
+      } else if (!append) {
+        container.innerHTML = '<div class="tl-empty"><span>⏳</span>No history found in database</div>';
+        loadMoreBtn.classList.add('hidden');
+      }
+    }
+  } else {
+    // Local fallback logic (simple, no pagination needed for localStorage since it's local)
+    if (!append) {
+      const history = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!isNaN(key)) {
+          const yearData = JSON.parse(localStorage.getItem(key));
+          for (const month in yearData) {
+            history.push({ ...yearData[month], month, year: key });
+          }
+        }
+      }
+      
+      // Sort by date roughly (newest first)
+      history.sort((a,b) => new Date(b.date) - new Date(a.date));
+      
+      if (history.length > 0) {
+        history.slice(0, 15).forEach(bill => { // Show max 15 local for simplicity
+          const entry = document.createElement('div');
+          entry.className = 'tl-entry';
+          entry.innerHTML = `
+            <div class="tl-content">
+              <div class="tl-date">${bill.date}</div>
+              <div class="tl-title">Bill — ₹${bill.totalAmount} (Local)</div>
+              <div class="tl-body">
+                <div class="tl-row"><span class="tl-row-label">Shop 1</span><span class="tl-row-val">₹${bill.shop1.bill} (${bill.shop1.units} units)</span></div>
+                <div class="tl-row"><span class="tl-row-label">Shop 2</span><span class="tl-row-val">₹${bill.shop2.bill} (${bill.shop2.units} units)</span></div>
+              </div>
+            </div>`;
+          container.appendChild(entry);
+        });
+      } else {
+        container.innerHTML = '<div class="tl-empty"><span>⏳</span>No local history found</div>';
+      }
+      loadMoreBtn.classList.add('hidden');
+    }
+  }
+  
+  // Update the beam length after timeline builds
+  setTimeout(() => {
+    const beam = document.getElementById('tlBeam');
+    const list = document.getElementById('tlList');
+    if (beam && list) {
+       beam.style.height = `${list.offsetHeight}px`;
+    }
+  }, 100);
+}
+
+window.addEventListener('scroll', () => {
+    const list = document.getElementById('tlList');
+    const beam = document.getElementById('tlBeam');
+    if (!list || !beam) return;
+    const rect = list.getBoundingClientRect();
+    const winH = window.innerHeight;
+    const progress = Math.max(0, Math.min(1, (winH - rect.top) / (rect.height + winH)));
+    beam.style.transform = `scaleY(${progress})`;
+});
 
 </script>
 </body>

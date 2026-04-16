@@ -7,8 +7,23 @@ const OUTPUT_DIR = 'dist';
 const OUTPUT_FILE = path.join(OUTPUT_DIR, 'index.html');
 
 // Environment Variables from Vercel/Local
-const SUPABASE_URL = process.env.SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+// Environment Variables from Vercel/Local
+let SUPABASE_URL = process.env.SUPABASE_URL || '';
+let SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+
+// Simple .env parser to avoid extra dependencies
+if (fs.existsSync('.env')) {
+  const envContent = fs.readFileSync('.env', 'utf8');
+  envContent.split('\n').forEach(line => {
+    const [key, ...valueParts] = line.split('=');
+    if (key && valueParts.length > 0) {
+      const value = valueParts.join('=').trim().replace(/^["']|["']$/g, '');
+      if (key.trim() === 'SUPABASE_URL' && !SUPABASE_URL) SUPABASE_URL = value;
+      if (key.trim() === 'SUPABASE_ANON_KEY' && !SUPABASE_ANON_KEY) SUPABASE_ANON_KEY = value;
+    }
+  });
+  console.log('📝 Loaded credentials from .env file');
+}
 
 function build() {
   console.log('🚀 Starting build process...');
@@ -44,8 +59,12 @@ function build() {
   // Copy other assets if any (e.g. favicon)
   const favicon = 'favicon.ico';
   if (fs.existsSync(favicon)) {
-    fs.copyFileSync(favicon, path.join(OUTPUT_DIR, favicon));
-    console.log('📄 Copied favicon.ico');
+    try {
+      fs.copyFileSync(favicon, path.join(OUTPUT_DIR, favicon));
+      console.log('📄 Copied favicon.ico');
+    } catch (err) {
+      console.warn(`⚠️ Warning: Could not copy ${favicon}. It might be in use or locked. The app will still work!`);
+    }
   }
 }
 
