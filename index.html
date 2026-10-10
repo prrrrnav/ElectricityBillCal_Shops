@@ -254,14 +254,21 @@ input[readonly]{color:var(--mint);font-weight:700;cursor:default;border-color:rg
 input::placeholder{color:rgba(149,141,161,.45)}
 select option{background:#1f1f25;color:var(--on)}
 .divider{height:1px;background:linear-gradient(90deg,transparent,rgba(141,240,204,.15),transparent);margin:1.5rem 0}
-.shops-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+.shops-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1rem;margin-bottom:1rem}
 .shop-card{background:rgba(42,41,47,.45);border:1px solid rgba(210,187,255,.08);border-radius:var(--r-lg);padding:1.25rem;transition:border-color .3s,box-shadow .3s}
 .shop-card:hover{border-color:rgba(141,240,204,.2);box-shadow:0 0 24px rgba(141,240,204,.06)}
-.shop-card h3{font-size:.8rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;margin-bottom:1rem}
-.shop-card:nth-child(1) h3{background:linear-gradient(90deg,#d2bbff,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.shop-card:nth-child(2) h3{background:linear-gradient(90deg,#8df0cc,#4cd7f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.shop-card h3{font-size:.8rem;font-weight:700;text-transform:uppercase;margin-bottom:1rem;color:var(--mint)}
 .shop-field{display:flex;flex-direction:column;gap:.3rem;margin-bottom:.7rem}
 .shop-field:last-child{margin-bottom:0}
+.shop-management{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem}
+.shop-manage-btn,.shop-archive-btn{border:1px solid rgba(141,240,204,.24);border-radius:var(--r-md);background:rgba(141,240,204,.06);color:var(--mint);padding:.55rem .8rem;font:600 .78rem 'Inter',sans-serif;cursor:pointer}
+.shop-archive-btn{color:#ffb4a8;border-color:rgba(255,180,168,.22);background:rgba(255,180,168,.05)}
+.shop-card-head{display:flex;justify-content:space-between;align-items:center;gap:.7rem;margin-bottom:1rem}
+.shop-card-head h3{margin:0}
+.shop-name-input{margin-bottom:.8rem}
+.archived-shops{font-size:.78rem;color:var(--dim)}
+.archived-shops summary{cursor:pointer}
+.archived-shop-row{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.6rem 0;border-bottom:1px solid rgba(74,68,85,.35)}
 .btn-calc{
   width:100%;padding:.9rem 1.5rem;
   background:#fff;
@@ -276,7 +283,7 @@ select option{background:#1f1f25;color:var(--on)}
 .btn-calc:active{transform:translateY(0) scale(.99)}
 .results{margin-top:1.25rem;padding:1.25rem;background:rgba(10,10,15,.65);border:1px solid rgba(141,240,204,.15);border-radius:var(--r-lg);display:none}
 .results.visible{display:block}
-.results-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem}
+.results-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.75rem;margin-bottom:.75rem}
 .r-item{padding:.9rem 1rem;background:rgba(42,41,47,.6);border-radius:var(--r-md);border:1px solid rgba(74,68,85,.4)}
 .r-item .shop-name{font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:.35rem}
 .r-item .amount{font-size:1.5rem;font-weight:800;background:linear-gradient(135deg,var(--pr),var(--mint));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
@@ -571,34 +578,19 @@ select option{background:#1f1f25;color:var(--on)}
 
     <!-- Shops -->
     <p class="lbl-sect">Meter Readings</p>
-    <div class="shops-grid">
-      <div class="shop-card">
-        <h3>Mobile Shop</h3>
-        <div class="shop-field"><label for="shop1CurrentReading">Current Reading</label>
-          <input type="number" id="shop1CurrentReading" placeholder="Current (kWh)" min="0" oninput="updateUnits()"></div>
-        <div class="shop-field"><label for="shop1LastReading">Last Reading</label>
-          <input type="number" id="shop1LastReading" placeholder="Last (kWh)" min="0" oninput="updateUnits()"></div>
-        <div class="shop-field"><label for="shop1Units">Units Consumed</label>
-          <input type="number" id="shop1Units" placeholder="Auto-calculated" readonly></div>
-      </div>
-      <div class="shop-card">
-        <h3>Medical Shop</h3>
-        <div class="shop-field"><label for="shop2CurrentReading">Current Reading</label>
-          <input type="number" id="shop2CurrentReading" placeholder="Current (kWh)" min="0" oninput="updateUnits()"></div>
-        <div class="shop-field"><label for="shop2LastReading">Last Reading</label>
-          <input type="number" id="shop2LastReading" placeholder="Last (kWh)" min="0" oninput="updateUnits()"></div>
-        <div class="shop-field"><label for="shop2Units">Units Consumed</label>
-          <input type="number" id="shop2Units" placeholder="Auto-calculated" readonly></div>
-      </div>
+    <div class="shops-grid" id="shopsGrid"></div>
+    <div class="shop-management">
+      <button class="shop-manage-btn" type="button" onclick="addShop()">+ Add Shop</button>
+      <details class="archived-shops" id="archivedShopsSection">
+        <summary>Archived shops</summary>
+        <div id="archivedShops"></div>
+      </details>
     </div>
 
     <button class="btn-calc" id="calcBtn" onclick="calculateBill()">Calculate &amp; Save</button>
 
     <div class="results" id="resultsSection" aria-live="polite">
-      <div class="results-grid">
-        <div class="r-item"><div class="shop-name">Mobile Shop</div><div class="amount" id="shop1BillResult">₹0.00</div></div>
-        <div class="r-item"><div class="shop-name">Medical Shop</div><div class="amount" id="shop2BillResult">₹0.00</div></div>
-      </div>
+      <div class="results-grid" id="resultGrid"></div>
       <div class="r-meta" id="rateMeta"></div>
     </div>
     <p class="last-upd" id="lastUpdated"></p>
@@ -633,6 +625,7 @@ select option{background:#1f1f25;color:var(--on)}
 
 <!-- COBE — WebGL 3D Globe (official CDN) -->
 <script src="https://unpkg.com/cobe@0.6.3/dist/cobe.umd.js"></script>
+<script src="billing.js"></script>
 
 <script>
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -849,9 +842,9 @@ function triggerVanish(){
       // reset
       vctx.clearRect(0,0,vc.width,vc.height);
       inp.style.color='';inp.style.caretColor='';
-      inp.value='';
-      document.getElementById('vanishWrap').classList.remove('has-val');
-      showToast('💡 Amount ready — fill readings and calculate!');
+      onAmountInput(inp);
+      saveDraft();
+      showToast('💡 Amount confirmed — fill readings and calculate!');
       startPlaceholders();
     }
   }
@@ -1010,6 +1003,136 @@ function showToast(msg,dur=2800){
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 const yearSel=document.getElementById('yearSelect');
 const monSel=document.getElementById('monthSelect');
+const shopsGrid=document.getElementById('shopsGrid');
+const SHOP_STORAGE_KEY='electricity_shop_registry';
+let shopRegistry=readShopRegistry();
+let currentShops=[];
+let knownRecords=[];
+
+function readShopRegistry(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(SHOP_STORAGE_KEY));
+    if(Array.isArray(saved)&&saved.length)return saved.map(shop=>({id:String(shop.id),name:String(shop.name||'Shop'),active:shop.active!==false}));
+  }catch(err){console.warn('Could not read shop list:',err)}
+  return ElectricityBilling.LEGACY_SHOPS.map(shop=>({...shop,active:true}));
+}
+
+function saveShopRegistry(){
+  localStorage.setItem(SHOP_STORAGE_KEY,JSON.stringify(shopRegistry));
+}
+
+function escapeHtml(value){
+  return String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+}
+
+function localRecords(){
+  const records=[];
+  for(let index=0;index<localStorage.length;index++){
+    const year=localStorage.key(index);
+    if(!/^\d{4}$/.test(year))continue;
+    try{
+      const months=JSON.parse(localStorage.getItem(year))||{};
+      Object.entries(months).forEach(([month,data])=>records.push({year:Number(year),month,data}));
+    }catch(err){console.warn('Skipping unreadable local history:',year,err)}
+  }
+  return records;
+}
+
+function monthDraftKey(year,month){return `electricity_draft_${year}_${month}`}
+
+function saveDraft(){
+  localStorage.setItem(monthDraftKey(yearSel.value,monSel.value),JSON.stringify({
+    totalAmount:document.getElementById('totalAmount').value,
+    shops:currentShops,
+    shopRegistry
+  }));
+}
+
+function renderShops(){
+  shopsGrid.innerHTML=currentShops.map((shop,index)=>`
+    <article class="shop-card">
+      <div class="shop-card-head"><h3>Shop ${index+1}</h3><button class="shop-archive-btn" type="button" data-shop-action="archive" data-shop-id="${escapeHtml(shop.id)}" aria-label="Archive ${escapeHtml(shop.name)}">Archive</button></div>
+      <div class="shop-field"><label>Shop name</label><input class="shop-name-input" type="text" maxlength="60" value="${escapeHtml(shop.name)}" data-shop-field="name" data-shop-id="${escapeHtml(shop.id)}"></div>
+      <div class="shop-field"><label>Previous reading (kWh)</label><input type="number" min="0" step="any" placeholder="Enter starting reading" value="${shop.lastReading??''}" data-shop-field="lastReading" data-shop-id="${escapeHtml(shop.id)}"></div>
+      <div class="shop-field"><label>Current reading (kWh)</label><input type="number" min="0" step="any" placeholder="Enter current reading" value="${shop.currentReading??''}" data-shop-field="currentReading" data-shop-id="${escapeHtml(shop.id)}"></div>
+      <div class="shop-field"><label>Units consumed</label><input type="number" placeholder="Auto-calculated" value="${shop.currentReading!==null&&shop.currentReading!==undefined&&shop.lastReading!==null&&shop.lastReading!==undefined&&shop.currentReading>=shop.lastReading?shop.currentReading-shop.lastReading:''}" readonly></div>
+    </article>`).join('');
+  renderArchivedShops();
+}
+
+function renderArchivedShops(){
+  const archived=shopRegistry.filter(shop=>!shop.active);
+  const container=document.getElementById('archivedShops');
+  container.innerHTML=archived.length?archived.map(shop=>`<div class="archived-shop-row"><span>${escapeHtml(shop.name)}</span><button class="shop-manage-btn" type="button" data-shop-action="restore" data-shop-id="${escapeHtml(shop.id)}">Restore</button></div>`).join(''):'<p>No archived shops.</p>';
+  document.getElementById('archivedShopsSection').hidden=!archived.length;
+}
+
+shopsGrid.addEventListener('input',event=>{
+  const input=event.target;
+  const field=input.dataset.shopField;
+  if(field!=='currentReading'&&field!=='lastReading')return;
+  const shop=currentShops.find(item=>item.id===input.dataset.shopId);
+  if(!shop)return;
+  shop[field]=input.value===''?null:Number(input.value);
+  updateUnits();
+  saveDraft();
+});
+
+shopsGrid.addEventListener('change',event=>{
+  const input=event.target;
+  if(input.dataset.shopField!=='name')return;
+  const shop=shopRegistry.find(item=>item.id===input.dataset.shopId);
+  if(!shop)return;
+  const name=input.value.trim();
+  if(!name){input.value=shop.name;return}
+  shop.name=name;
+  const current=currentShops.find(item=>item.id===shop.id);
+  if(current)current.name=name;
+  saveShopRegistry();
+  saveDraft();
+});
+
+shopsGrid.addEventListener('click',event=>{
+  const button=event.target.closest('[data-shop-action="archive"]');
+  if(button)archiveShop(button.dataset.shopId);
+});
+
+document.getElementById('archivedShops').addEventListener('click',event=>{
+  const button=event.target.closest('[data-shop-action="restore"]');
+  if(button)restoreShop(button.dataset.shopId);
+});
+
+function addShop(){
+  const name=window.prompt('Shop name');
+  if(!name||!name.trim())return;
+  const id=`shop-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+  const shop={id,name:name.trim(),active:true};
+  shopRegistry.push(shop);
+  currentShops.push({...shop,lastReading:ElectricityBilling.findPreviousReading(id,knownRecords,Number(yearSel.value),monSel.value),currentReading:null,units:null,bill:null});
+  saveShopRegistry();
+  renderShops();
+  saveDraft();
+}
+
+function archiveShop(id){
+  const shop=shopRegistry.find(item=>item.id===id);
+  if(!shop)return;
+  shop.active=false;
+  currentShops=currentShops.filter(item=>item.id!==id);
+  saveShopRegistry();
+  renderShops();
+  saveDraft();
+}
+
+function restoreShop(id){
+  const shop=shopRegistry.find(item=>item.id===id);
+  if(!shop)return;
+  shop.active=true;
+  currentShops.push({...shop,lastReading:ElectricityBilling.findPreviousReading(id,knownRecords,Number(yearSel.value),monSel.value),currentReading:null,units:null,bill:null});
+  saveShopRegistry();
+  renderShops();
+  saveDraft();
+}
 
 /* Populate years */
 const curYear=new Date().getFullYear();
@@ -1022,150 +1145,153 @@ for(let y=curYear-3;y<=2035;y++){
 monSel.value=new Date().toLocaleString('default',{month:'long'});
 yearSel.addEventListener('change',loadData);
 monSel.addEventListener('change',loadData);
+document.getElementById('totalAmount').addEventListener('input',saveDraft);
 loadData();buildTimeline();
 
 async function loadData() {
-  const yr = yearSel.value, mo = monSel.value;
-  let d = null;
-
-  if (supabaseClient) {
-    try {
-      const { data, error } = await supabaseClient
-        .from('electricity_bills')
-        .select('*')
-        .eq('year', parseInt(yr))   // FIX: year is stored as INT in DB
-        .eq('month', mo)
-        .maybeSingle();
-      
-      if (error) {
-        console.error('❌ Supabase Fetch Error:', error);
-        showToast('❌ Could not load from Cloud — fallback to local');
-        // Fallback to local on error
-        const yd = JSON.parse(localStorage.getItem(yr)) || {};
-        d = yd[mo];
-      } else if (data) {
-        console.log('📦 Loaded from Supabase:', data);
-        d = {
-          totalAmount: data.total_amount,
-          date: data.display_date,
-          shop1: { currentReading: data.shop1_current, lastReading: data.shop1_last, units: data.shop1_units, bill: data.shop1_bill },
-          shop2: { currentReading: data.shop2_current, lastReading: data.shop2_last, units: data.shop2_units, bill: data.shop2_bill }
-        };
-      } else {
-        console.log('ℹ️ No record in DB for', yr, mo);
+  const year=Number(yearSel.value),month=monSel.value;
+  const local=localRecords();
+  let saved=null;
+  knownRecords=local;
+  if(supabaseClient){
+    try{
+      const result=await supabaseClient.from('electricity_bills').select('*').eq('year',year).eq('month',month).maybeSingle();
+      if(result.error)throw result.error;
+      if(result.data)saved=cloudRecord(result.data);
+      const history=await supabaseClient.from('electricity_bills').select('*').lte('year',year);
+      if(!history.error&&history.data){
+        const cloud=history.data.map(row=>({year:Number(row.year),month:row.month,data:cloudRecord(row)}));
+        const byPeriod=new Map(local.map(item=>[`${item.year}-${item.month}`,item]));
+        cloud.forEach(item=>byPeriod.set(`${item.year}-${item.month}`,item));
+        knownRecords=[...byPeriod.values()];
       }
-    } catch (err) {
-      console.error('❌ Unexpected fetch error:', err);
-    }
-  } else {
-    // Fallback to local storage
-    const yd = JSON.parse(localStorage.getItem(yr)) || {};
-    d = yd[mo];
+    }catch(err){console.error('Could not load cloud bill data:',err);showToast('Cloud unavailable; using local data');}
+  }
+  if(!saved){
+    const yearData=JSON.parse(localStorage.getItem(String(year))||'{}');
+    saved=yearData[month]||null;
   }
 
-  if (d) {
-    document.getElementById('totalAmount').value = d.totalAmount;
-    document.getElementById('shop1CurrentReading').value = d.shop1.currentReading;
-    document.getElementById('shop1LastReading').value = d.shop1.lastReading;
-    document.getElementById('shop2CurrentReading').value = d.shop2.currentReading;
-    document.getElementById('shop2LastReading').value = d.shop2.lastReading;
-    onAmountInput(amtInput);
-    updateUnits();
-    showResults(d.shop1.bill, d.shop2.bill, d.shop1.units, d.shop2.units, d.totalAmount);
-    document.getElementById('lastUpdated').textContent = `Last saved: ${d.date}`;
-  } else {
-    ['totalAmount', 'shop1CurrentReading', 'shop1LastReading', 'shop1Units',
-      'shop2CurrentReading', 'shop2LastReading', 'shop2Units']
-      .forEach(id => document.getElementById(id).value = '');
-    onAmountInput(amtInput);
+  const draft=JSON.parse(localStorage.getItem(monthDraftKey(year,month))||'null');
+  const periodData=draft||saved;
+  if(saved&&Array.isArray(saved.shopRegistry)&&!localStorage.getItem(SHOP_STORAGE_KEY)){
+    shopRegistry=saved.shopRegistry;
+    saveShopRegistry();
+  }else if(periodData&&Array.isArray(periodData.shops)&&!localStorage.getItem(SHOP_STORAGE_KEY)){
+    shopRegistry=periodData.shops.map(shop=>({id:shop.id,name:shop.name,active:true}));
+    saveShopRegistry();
+  }
+
+  const normalized=periodData?ElectricityBilling.normalizeMonthRecord(periodData):null;
+  const savedShops=normalized?.shops||[];
+  const definitions=periodData&&savedShops.length
+    ? [...savedShops.filter(savedShop=>shopRegistry.find(shop=>shop.id===savedShop.id)?.active!==false),...shopRegistry.filter(shop=>shop.active&&!savedShops.some(savedShop=>savedShop.id===shop.id))]
+    : shopRegistry.filter(shop=>shop.active);
+  currentShops=definitions.map(definition=>{
+    const savedShop=savedShops.find(shop=>shop.id===definition.id);
+    const previous=savedShop?.lastReading??ElectricityBilling.findPreviousReading(definition.id,knownRecords,year,month);
+    return {
+      id:definition.id,
+      name:definition.name||savedShop?.name||'Shop',
+      lastReading:previous,
+      currentReading:savedShop?.currentReading??null,
+      units:savedShop?.units??null,
+      bill:savedShop?.bill??null
+    };
+  });
+
+  document.getElementById('totalAmount').value=periodData?.totalAmount??'';
+  onAmountInput(amtInput);
+  renderShops();
+  updateUnits();
+  if(normalized&&normalized.shops.some(shop=>shop.bill!==null)){
+    showResults(normalized.shops,normalized.totalAmount);
+    document.getElementById('lastUpdated').textContent=`Last saved: ${normalized.date}`;
+  }else{
     document.getElementById('resultsSection').classList.remove('visible');
-    document.getElementById('lastUpdated').textContent = '';
+    document.getElementById('lastUpdated').textContent='';
   }
 }
 
+function cloudRecord(row){
+  const record=row.shops?ElectricityBilling.normalizeMonthRecord({totalAmount:row.total_amount,date:row.display_date,shops:row.shops}):ElectricityBilling.normalizeMonthRecord({
+    totalAmount:row.total_amount,date:row.display_date,
+    shop1:{currentReading:row.shop1_current,lastReading:row.shop1_last,units:row.shop1_units,bill:row.shop1_bill},
+    shop2:{currentReading:row.shop2_current,lastReading:row.shop2_last,units:row.shop2_units,bill:row.shop2_bill}
+  });
+  record.shopRegistry=row.shop_registry||null;
+  return record;
+}
 
 function updateUnits(){
-  const s1c=+document.getElementById('shop1CurrentReading').value||0;
-  const s1l=+document.getElementById('shop1LastReading').value||0;
-  const s2c=+document.getElementById('shop2CurrentReading').value||0;
-  const s2l=+document.getElementById('shop2LastReading').value||0;
-  document.getElementById('shop1Units').value=Math.max(s1c-s1l,0)||'';
-  document.getElementById('shop2Units').value=Math.max(s2c-s2l,0)||'';
+  currentShops.forEach(shop=>{
+    const card=[...shopsGrid.children].find(element=>element.querySelector('[data-shop-id]')?.dataset.shopId===shop.id);
+    if(!card)return;
+    const units=card.querySelector('input[readonly]');
+    units.value=shop.currentReading!==null&&shop.lastReading!==null&&shop.currentReading>=shop.lastReading?shop.currentReading-shop.lastReading:'';
+  });
 }
 
-function showResults(b1,b2,u1,u2,total){
-  document.getElementById('shop1BillResult').textContent=`₹${parseFloat(b1).toFixed(2)}`;
-  document.getElementById('shop2BillResult').textContent=`₹${parseFloat(b2).toFixed(2)}`;
-  const tu=(u1||0)+(u2||0),rate=tu>0?(total/tu).toFixed(3):'—';
-  document.getElementById('rateMeta').innerHTML=`Rate: <span>₹${rate}/unit</span> &nbsp;|&nbsp; Total Units: <span>${tu}</span>`;
+function showResults(shops,total){
+  const resultGrid=document.getElementById('resultGrid');
+  resultGrid.innerHTML=shops.map(shop=>`<div class="r-item"><div class="shop-name">${escapeHtml(shop.name)}</div><div class="amount">₹${Number(shop.bill||0).toFixed(2)}</div><div class="r-meta">${Number(shop.units||0)} units</div></div>`).join('');
+  const units=shops.reduce((sum,shop)=>sum+Number(shop.units||0),0);
+  const rate=units>0?(Number(total)/units).toFixed(3):'—';
+  document.getElementById('rateMeta').innerHTML=`Rate: <span>₹${rate}/unit</span> &nbsp;|&nbsp; Total Units: <span>${units}</span>`;
   document.getElementById('resultsSection').classList.add('visible');
 }
 
-async function calculateBill() {
-  const yr = yearSel.value, mo = monSel.value;
-  const total = +document.getElementById('totalAmount').value;
-  const s1c = +document.getElementById('shop1CurrentReading').value || 0;
-  const s1l = +document.getElementById('shop1LastReading').value || 0;
-  const s2c = +document.getElementById('shop2CurrentReading').value || 0;
-  const s2l = +document.getElementById('shop2LastReading').value || 0;
-  const u1 = Math.max(s1c - s1l, 0), u2 = Math.max(s2c - s2l, 0);
+async function calculateBill(){
+  const year=Number(yearSel.value),month=monSel.value;
+  const total=Number(document.getElementById('totalAmount').value);
+  let allocations;
+  try{allocations=ElectricityBilling.calculateAllocations(total,currentShops)}
+  catch(error){showToast(`⚠️ ${error.message}`);return}
 
-  if (!total || total <= 0) { showToast('⚠️ Enter a valid total amount.'); return }
-  if (!u1 && !u2) { showToast('⚠️ Units are zero — check readings.'); return }
+  const date=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const data={totalAmount:total,date,shops:allocations,shopRegistry};
+  const mobile=allocations.find(shop=>shop.id==='mobile-shop')||{};
+  const medical=allocations.find(shop=>shop.id==='medical-shop')||{};
+  let cloudSaved=false;
 
-  const tu = u1 + u2, rate = total / tu;
-  const b1 = (u1 * rate).toFixed(3), b2 = (u2 * rate).toFixed(3);
-  const date = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-
-  const data = {
-    totalAmount: total, date,
-    shop1: { currentReading: s1c, lastReading: s1l, units: u1, bill: b1 },
-    shop2: { currentReading: s2c, lastReading: s2l, units: u2, bill: b2 }
-  };
-
-  if (supabaseClient) {
-    const { error } = await supabaseClient
-      .from('electricity_bills')
-      .upsert({
-        year: parseInt(yr),
-        month: mo,
-        total_amount: total,
-        shop1_current: s1c,
-        shop1_last: s1l,
-        shop1_units: u1,
-        shop1_bill: parseFloat(b1),
-        shop2_current: s2c,
-        shop2_last: s2l,
-        shop2_units: u2,
-        shop2_bill: parseFloat(b2),
-        display_date: date
-      }, { onConflict: 'year,month' });
-    
-    if (error) {
-      console.error('Supabase save error details:', error);
-      showToast('❌ Cloud Save Failed — See Console');
-    } else {
-      showToast('✅ Bill synced to Cloud!');
-    }
-  } else {
-    console.warn('Supabase not initialized. Saving to localized storage only.');
-    showToast('⚠️ Local Save Only (DB not configured)');
+  if(supabaseClient){
+    const {error}=await supabaseClient.from('electricity_bills').upsert({
+      year,month,total_amount:total,shops:allocations,shop_registry:shopRegistry,
+      shop1_current:mobile.currentReading??0,shop1_last:mobile.lastReading??0,shop1_units:mobile.units??0,shop1_bill:mobile.bill??0,
+      shop2_current:medical.currentReading??0,shop2_last:medical.lastReading??0,shop2_units:medical.units??0,shop2_bill:medical.bill??0,
+      display_date:date
+    },{onConflict:'year,month'});
+    if(error)console.error('Supabase save error:',error);
+    else cloudSaved=true;
   }
 
-  // Always keep localStorage as a sync/fallback
-  const yd = JSON.parse(localStorage.getItem(yr)) || {};
-  yd[mo] = data; localStorage.setItem(yr, JSON.stringify(yd));
-
-  document.getElementById('shop1Units').value = u1;
-  document.getElementById('shop2Units').value = u2;
-  showResults(b1, b2, u1, u2, total);
-  document.getElementById('lastUpdated').textContent = `Last saved: ${date}`;
-  showToast('✅ Bill saved in Cloud!');
-  buildTimeline(); // refresh timeline
+  const yearData=JSON.parse(localStorage.getItem(String(year))||'{}');
+  yearData[month]=data;
+  localStorage.setItem(String(year),JSON.stringify(yearData));
+  localStorage.removeItem(monthDraftKey(year,month));
+  saveShopRegistry();
+  document.getElementById('lastUpdated').textContent=`Last saved: ${date}`;
+  showResults(allocations,total);
+  showToast(cloudSaved?'✅ Bill saved and synced to cloud.':supabaseClient?'⚠️ Bill saved locally; cloud save failed.':'✅ Bill saved locally.');
+  buildTimeline();
 }
 
 async function loadMore() {
   await buildTimeline(true);
+}
+
+function appendTimelineEntry(container,record,year,month,isLocal=false){
+  const normalized=ElectricityBilling.normalizeMonthRecord(record);
+  const entry=document.createElement('div');
+  entry.className='tl-entry';
+  entry.innerHTML=`
+    <div class="tl-dot-wrap"><div class="tl-dot"></div></div>
+    <div class="tl-content">
+      <div class="tl-date">${escapeHtml(normalized.date||'Saved bill')}</div>
+      <div class="tl-title">Bill — ₹${normalized.totalAmount.toFixed(2)}${isLocal?' (Local)':''} &nbsp;<span style="font-size:.7rem;opacity:.5">${escapeHtml(month||'')} ${escapeHtml(year||'')}</span></div>
+      <div class="tl-body">${normalized.shops.map(shop=>`<div class="tl-row"><span class="tl-row-label">${escapeHtml(shop.name)}</span><span class="tl-row-val">₹${Number(shop.bill||0).toFixed(2)} (${Number(shop.units||0)} units)</span></div>`).join('')}</div>
+    </div>`;
+  container.appendChild(entry);
 }
 
 async function buildTimeline(append = false) {
@@ -1196,21 +1322,7 @@ async function buildTimeline(append = false) {
         showToast('❌ Failed to fetch history');
       } else {
         if (data && data.length > 0) {
-          data.forEach(bill => {
-            const entry = document.createElement('div');
-            entry.className = 'tl-entry';
-            entry.innerHTML = `
-              <div class="tl-dot-wrap"><div class="tl-dot"></div></div>
-              <div class="tl-content">
-                <div class="tl-date">${bill.display_date || bill.created_at}</div>
-                <div class="tl-title">Bill — ₹${bill.total_amount} &nbsp;<span style="font-size:.7rem;opacity:.5">${bill.month} ${bill.year}</span></div>
-                <div class="tl-body">
-                  <div class="tl-row"><span class="tl-row-label">Mobile Shop</span><span class="tl-row-val">₹${parseFloat(bill.shop1_bill).toFixed(2)} (${bill.shop1_units} units)</span></div>
-                  <div class="tl-row"><span class="tl-row-label">Medical Shop</span><span class="tl-row-val">₹${parseFloat(bill.shop2_bill).toFixed(2)} (${bill.shop2_units} units)</span></div>
-                </div>
-              </div>`;
-            container.appendChild(entry);
-          });
+          data.forEach(bill => appendTimelineEntry(container,cloudRecord(bill),bill.year,bill.month));
 
           // Trigger in-view animations via IntersectionObserver
           const observer = new IntersectionObserver((entries) => {
@@ -1250,20 +1362,7 @@ async function buildTimeline(append = false) {
       history.sort((a,b) => new Date(b.date) - new Date(a.date));
       
       if (history.length > 0) {
-        history.slice(0, 15).forEach(bill => { // Show max 15 local for simplicity
-          const entry = document.createElement('div');
-          entry.className = 'tl-entry';
-          entry.innerHTML = `
-            <div class="tl-content">
-              <div class="tl-date">${bill.date}</div>
-              <div class="tl-title">Bill — ₹${bill.totalAmount} (Local)</div>
-              <div class="tl-body">
-                <div class="tl-row"><span class="tl-row-label">Shop 1</span><span class="tl-row-val">₹${bill.shop1.bill} (${bill.shop1.units} units)</span></div>
-                <div class="tl-row"><span class="tl-row-label">Shop 2</span><span class="tl-row-val">₹${bill.shop2.bill} (${bill.shop2.units} units)</span></div>
-              </div>
-            </div>`;
-          container.appendChild(entry);
-        });
+        history.slice(0,15).forEach(bill=>appendTimelineEntry(container,bill,bill.year,bill.month,true));
       } else {
         container.innerHTML = '<div class="tl-empty"><span>⏳</span>No local history found</div>';
       }

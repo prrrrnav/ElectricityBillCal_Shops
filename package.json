@@ -3,9 +3,19 @@
   "version": "1.0.0",
   "description": "Premium electricity bill calculator for shops",
   "scripts": {
-    "build": "node build.js"
+    "build": "node build.js",
+    "test": "node --test",
+    "check:env": "node scripts/check-env.js"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@supabase/supabase-js": "^2.117.3",
+    "zod": "^4.6.5"
+  }
 }
